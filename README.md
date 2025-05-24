@@ -10,7 +10,7 @@
 - 🧠 Process supervision with zero-respawn lag
 - 🔐 Built-in security context enforcement
 - 📜 Fully scriptable with `quasarctl` (custom control CLI)
-- 🧭 Seamless integration with `logincore`, `journalcore`, and `quasar-core-*` tools
+- 🧭 Seamless integration with `logincore`, `journalcore`, and `quasar-core` tools
 - 🛡️ Designed for sandboxed + secure environments (AppArmor, seccomp, namespaces, etc.)
 
 ---
