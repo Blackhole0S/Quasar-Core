@@ -1,0 +1,84 @@
+# OS junk
+*.swp
+*~
+.DS_Store
+Thumbs.db
+
+# Compiled object files
+*.o
+*.ko
+*.obj
+*.elf
+*.mod.c
+
+# Build artifacts
+*.a
+*.so
+*.so.*
+*.out
+*.exe
+
+# Binaries and local builds
+/build/
+/bin/
+/lib/
+/lib64/
+/out/
+/dist/
+/tmp/
+
+# CMake and Meson
+CMakeCache.txt
+CMakeFiles/
+build.ninja
+meson-logs/
+meson-private/
+compile_commands.json
+
+# Autotools
+Makefile
+Makefile.in
+aclocal.m4
+autom4te.cache/
+config.status
+config.log
+configure
+
+# Logs and debug
+*.log
+core
+*.core
+*.stackdump
+
+# Editor/IDE metadata
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# Wayland config/test artifacts
+*.wlroots-debug
+.wayland-test-run
+wlroots-build/
+
+# Package manager artifacts
+*.pkg.tar.*
+*.deb
+*.rpm
+*.snap
+*.flatpak
+
+# Optional: if you build ISOs for testing the DE
+*.iso
+*.img
+*.squashfs
+*.qcow2
+
+# Git
+*.patch
+*.rej
+*.orig
+
+# Node (if any JS tools are used in config GUI/launcher)
+node_modules/
+package-lock.json
