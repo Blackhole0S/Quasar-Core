@@ -1,4 +1,4 @@
-# quasar-core
+# Quasar-core
 
 **Quasar-Core** is the ultra-lightweight, ultra-fast init and service management system for [BlackholeOS](https://github.com/blackhole-os). It is a `systemd`-free replacement, designed to boot in milliseconds and manage services with minimal overhead — ideal for hardened, sandboxed, or anonymous systems.
 
