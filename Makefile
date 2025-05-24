@@ -1,44 +1,27 @@
 # quasar-core Makefile
 
-# Compiler and flags
-CC       ?= clang
-LD       ?= $(CC)
-CFLAGS   = -std=c99 -Wall -Wextra -Wpedantic -O2 -Iinclude \
-           -fstack-protector-strong -fPIE -D_FORTIFY_SOURCE=2 -Wno-unused-parameter
-LDFLAGS  = -Wl,-O1 -Wl,--as-needed -Wl,-z,relro,-z,now -pie
+CC = clang
+CFLAGS = -Wall -Wextra -O2 -std=c11
+LDFLAGS =
+SRC_DIR = src
+OBJ_DIR = obj
+BIN_DIR = bin
+TARGET = $(BIN_DIR)/quasar-core
 
-# Optional: for static init binary
-STATIC_FLAGS = -static
+SOURCES = $(wildcard $(SRC_DIR)/*.c)
+OBJECTS = $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%.o,$(SOURCES))
 
-# Targets
-TARGET_INIT = quasar-init
-TARGET_CTL  = quasarctl
+.PHONY: all clean
 
-# Source and object files
-SRC_INIT = $(wildcard init/*.c)
-SRC_CTL  = $(wildcard ctl/*.c)
+all: $(TARGET)
 
-OBJ_INIT = $(SRC_INIT:.c=.o)
-OBJ_CTL  = $(SRC_CTL:.c=.o)
+$(TARGET): $(OBJECTS)
+	@mkdir -p $(BIN_DIR)
+	$(CC) $(LDFLAGS) $(OBJECTS) -o $@
 
-BIN_DIR  = /usr/local/sbin
-
-.PHONY: all clean install uninstall
-
-all: $(TARGET_INIT) $(TARGET_CTL)
-
-$(TARGET_INIT): $(OBJ_INIT)
-	$(CC) $(CFLAGS) $(STATIC_FLAGS) -o $@ $^ $(LDFLAGS)
-
-$(TARGET_CTL): $(OBJ_CTL)
-	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
-
-install:
-	install -Dm755 $(TARGET_INIT) $(BIN_DIR)/$(TARGET_INIT)
-	install -Dm755 $(TARGET_CTL)  $(BIN_DIR)/$(TARGET_CTL)
-
-uninstall:
-	rm -f $(BIN_DIR)/$(TARGET_INIT) $(BIN_DIR)/$(TARGET_CTL)
+$(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
+	@mkdir -p $(OBJ_DIR)
+	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm -f $(OBJ_INIT) $(OBJ_CTL) $(TARGET_INIT) $(TARGET_CTL)
+	rm -rf $(OBJ_DIR) $(BIN_DIR)
