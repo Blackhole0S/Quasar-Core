@@ -1,134 +1,126 @@
-// src/service.c
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <signal.h>
 #include <sys/wait.h>
 #include "service.h"
 #include "logging.h"
+#include "sandbox.h"
 #include "utils.h"
 
-// Simple linked list for services
-typedef struct service {
-    char *name;
-    char *exec_path;
-    pid_t pid;
-    int running;
-    struct service *next;
-} service_t;
+#define MAX_SERVICES 64
 
-static service_t *services_head = NULL;
+static Service services[MAX_SERVICES];
+static int service_count = 0;
 
-// Find service by name
-static service_t *find_service(const char *name) {
-    service_t *current = services_head;
-    while (current) {
-        if (strcmp(current->name, name) == 0) {
-            return current;
+int load_services(const char *config_path) {
+    FILE *fp = fopen(config_path, "r");
+    if (!fp) {
+        log_error("Failed to open service config: %s", config_path);
+        return -1;
+    }
+
+    char line[512];
+    while (fgets(line, sizeof(line), fp)) {
+        if (line[0] == '#' || strlen(line) < 3) continue;
+
+        Service s = {0};
+        s.state = SERVICE_STOPPED;
+
+        char *name = strtok(line, ":");
+        char *exec = strtok(NULL, ":");
+        char *type = strtok(NULL, ":");
+
+        if (!name || !exec) continue;
+
+        s.name = strdup(name);
+        s.exec_start = strdup(exec);
+        s.oneshot = (type && strcmp(type, "oneshot\n") == 0);
+
+        if (service_count < MAX_SERVICES) {
+            services[service_count++] = s;
+            log_info("Loaded service: %s", s.name);
         }
-        current = current->next;
+    }
+
+    fclose(fp);
+    return 0;
+}
+
+static Service *find_service(const char *name) {
+    for (int i = 0; i < service_count; i++) {
+        if (strcmp(services[i].name, name) == 0)
+            return &services[i];
     }
     return NULL;
 }
 
-// Add a new service
-int service_add(const char *name, const char *exec_path) {
-    if (find_service(name)) {
-        log_warn("Service '%s' already exists", name);
+int start_service(const char *name) {
+    Service *s = find_service(name);
+    if (!s) {
+        log_error("Service not found: %s", name);
         return -1;
     }
 
-    service_t *svc = malloc(sizeof(service_t));
-    if (!svc) {
-        log_error("Failed to allocate memory for service '%s'", name);
-        return -1;
-    }
-    svc->name = strdup(name);
-    svc->exec_path = strdup(exec_path);
-    svc->pid = 0;
-    svc->running = 0;
-    svc->next = services_head;
-    services_head = svc;
-
-    log_info("Added service '%s' with exec path '%s'", name, exec_path);
-    return 0;
-}
-
-// Start a service
-int service_start(const char *name) {
-    service_t *svc = find_service(name);
-    if (!svc) {
-        log_error("Service '%s' not found", name);
-        return -1;
-    }
-    if (svc->running) {
-        log_warn("Service '%s' is already running (PID %d)", name, svc->pid);
-        return 0;
-    }
+    if (s->state == SERVICE_RUNNING) return 0;
 
     pid_t pid = fork();
-    if (pid < 0) {
-        log_error("Failed to fork for service '%s'", name);
-        return -1;
-    } else if (pid == 0) {
-        // Child: execute the service binary
-        execl(svc->exec_path, svc->exec_path, (char *)NULL);
-        // If execl returns, exec failed
-        log_error("Failed to exec service '%s'", svc->exec_path);
-        _exit(EXIT_FAILURE);
+    if (pid == 0) {
+        apply_sandbox(s->name); // Apply sandbox profile
+        execl("/bin/sh", "sh", "-c", s->exec_start, NULL);
+        exit(1); // exec failed
+    } else if (pid > 0) {
+        s->pid = pid;
+        s->state = s->oneshot ? SERVICE_STOPPED : SERVICE_RUNNING;
+        log_info("Started service: %s (PID %d)", s->name, pid);
+
+        if (s->oneshot) waitpid(pid, NULL, 0);
     } else {
-        // Parent
-        svc->pid = pid;
-        svc->running = 1;
-        log_info("Started service '%s' with PID %d", name, pid);
-        return 0;
-    }
-}
-
-// Stop a service
-int service_stop(const char *name) {
-    service_t *svc = find_service(name);
-    if (!svc || !svc->running) {
-        log_warn("Service '%s' not running or not found", name);
+        s->state = SERVICE_FAILED;
+        log_error("Failed to fork for service: %s", s->name);
         return -1;
     }
 
-    if (kill(svc->pid, SIGTERM) != 0) {
-        log_error("Failed to send SIGTERM to service '%s' PID %d", name, svc->pid);
-        return -1;
-    }
-
-    // Wait for process to terminate
-    int status;
-    waitpid(svc->pid, &status, 0);
-    svc->running = 0;
-    svc->pid = 0;
-    log_info("Stopped service '%s'", name);
     return 0;
 }
 
-// Restart a service
-int service_restart(const char *name) {
-    if (service_stop(name) == 0) {
-        return service_start(name);
+int stop_service(const char *name) {
+    Service *s = find_service(name);
+    if (!s || s->state != SERVICE_RUNNING) return -1;
+
+    if (s->exec_stop) {
+        system(s->exec_stop); // Graceful stop
+    } else {
+        kill(s->pid, SIGTERM);
     }
-    return -1;
+
+    waitpid(s->pid, NULL, 0);
+    s->state = SERVICE_STOPPED;
+    log_info("Stopped service: %s", s->name);
+    return 0;
 }
 
-// Cleanup all services
-void service_cleanup(void) {
-    service_t *current = services_head;
-    while (current) {
-        if (current->running) {
-            service_stop(current->name);
-        }
-        service_t *tmp = current;
-        current = current->next;
-        free(tmp->name);
-        free(tmp->exec_path);
-        free(tmp);
+int restart_service(const char *name) {
+    stop_service(name);
+    return start_service(name);
+}
+
+ServiceState get_service_state(const char *name) {
+    Service *s = find_service(name);
+    return s ? s->state : SERVICE_FAILED;
+}
+
+void list_services(void) {
+    for (int i = 0; i < service_count; i++) {
+        printf("Service: %s\tState: %d\n", services[i].name, services[i].state);
     }
-    services_head = NULL;
+}
+
+void cleanup_services(void) {
+    for (int i = 0; i < service_count; i++) {
+        free(services[i].name);
+        free(services[i].exec_start);
+        free(services[i].exec_stop);
+    }
+    service_count = 0;
 }
