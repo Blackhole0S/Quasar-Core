@@ -1,36 +1,41 @@
-# quasar-core Makefile
+# Makefile for Quasar-Core Init System
 
-CC = clang
-CFLAGS = -Wall -Wextra -O2 -std=c11
-LDFLAGS =
-SRC_DIR = src
-OBJ_DIR = obj
-BIN_DIR = bin
-TARGET = $(BIN_DIR)/quasar-core
+PROJECT_NAME := quasar-core
+CC := gcc
+CFLAGS := -Wall -Wextra -std=c99 -O2
+INCLUDES := -Iinclude
+SRC_DIR := src
+OBJ_DIR := obj
+BIN_DIR := bin
+TARGET := $(BIN_DIR)/init
 
-SOURCES = $(wildcard $(SRC_DIR)/*.c)
-OBJECTS = $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%.o,$(SOURCES))
+SRCS := $(wildcard $(SRC_DIR)/*.c)
+OBJS := $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%.o,$(SRCS))
 
-.PHONY: all clean
+.PHONY: all clean run test
 
 all: $(TARGET)
 
-$(TARGET): $(OBJECTS)
+$(TARGET): $(OBJS)
 	@mkdir -p $(BIN_DIR)
-	$(CC) $(LDFLAGS) $(OBJECTS) -o $@
+	$(CC) $(CFLAGS) $(INCLUDES) -o $@ $^
+	@echo "[✓] Built $(TARGET)"
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
 	@mkdir -p $(OBJ_DIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-test_utils: tests/test_utils.c src/utils.c
-	$(CC) $^ -Iinclude -o bin/test_utils
-
-test_service: tests/test_service.c src/service.c src/logging.c src/sandbox.c src/utils.c
-	$(CC) $^ -Iinclude -o bin/test_service
-
-test: test_service
-	./bin/test_service
+	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
 
 clean:
 	rm -rf $(OBJ_DIR) $(BIN_DIR)
+	@echo "[✓] Cleaned build artifacts"
+
+run: all
+	@echo "[i] Running init (simulated)..."
+	./$(TARGET)
+
+test:
+	@echo "[i] Running tests..."
+	$(CC) $(CFLAGS) $(INCLUDES) tests/test_service.c -o bin/test_service
+	$(CC) $(CFLAGS) $(INCLUDES) tests/test_utils.c -o bin/test_utils
+	@bin/test_service
+	@bin/test_utils
