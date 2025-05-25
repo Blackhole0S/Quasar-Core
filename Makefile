@@ -22,6 +22,10 @@ $(TARGET): $(OBJECTS)
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
 	@mkdir -p $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
+
+test_utils: tests/test_utils.c src/utils.c
+	$(CC) $^ -Iinclude -o bin/test_utils
+
 test_service: tests/test_service.c src/service.c src/logging.c src/sandbox.c src/utils.c
 	$(CC) $^ -Iinclude -o bin/test_service
 
